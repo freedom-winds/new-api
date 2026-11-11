@@ -1,0 +1,35 @@
+name: verify-moderation-patch
+
+# 每天自动拉取上游最新代码，验证审核补丁能否打上并编译通过；
+# 红了 = 上游改动导致补丁失效，需要重新对位补丁。
+on:
+  push:
+    paths: ['patches/**', '.github/workflows/verify-moderation-patch.yml']
+  schedule:
+    - cron: '0 21 * * *'  # 每日 UTC 21:00（北京时间 05:00）
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          check-latest: true
+
+      - name: Apply patch onto Steve3184/new-api HEAD
+        run: |
+          git clone --depth 1 https://github.com/Steve3184/new-api target
+          cd target
+          git apply --check ../patches/s6-moderation-for-steve3184.patch
+          git apply ../patches/s6-moderation-for-steve3184.patch
+          mkdir -p web/dist && printf '<!DOCTYPE html><html></html>' > web/dist/index.html
+
+      - name: Build
+        run: cd target && go build ./...
+
+      - name: Test moderation package
+        run: cd target && go test ./service/moderation/...

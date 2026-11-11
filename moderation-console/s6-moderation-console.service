@@ -1,0 +1,15 @@
+# /etc/systemd/system/s6-moderation-console.service
+[Unit]
+Description=S6 Moderation Console (内容审核管理台)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/moderation-console
+EnvironmentFile=/root/moderation-console/.env
+ExecStart=/root/moderation-console/s6-moderation-console
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
