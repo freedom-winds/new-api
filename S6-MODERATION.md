@@ -67,47 +67,16 @@ INSERT INTO moderation_settings(id, config, updated_at) VALUES (1, '{
 
 ## 三、部署管理面板（可选，但强烈建议）
 
-面板是**独立服务**，不碰 new-api 代码，直连 new-api 的数据库读写三张审核表。
+面板已独立成单独仓库（含一键部署脚本）：
 
-```bash
-# 方式 A：直接用 Release 里的编译好的二进制（linux/amd64）
-#   https://github.com/freedom-winds/new-api/releases
-# 方式 B：自己编译（需要 Go 1.24+）
-cd moderation-console
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o s6-moderation-console .
+- 仓库：https://github.com/freedom-winds/newapi-antiAnti
+- 一键部署：`git clone https://github.com/freedom-winds/newapi-antiAnti.git && cd newapi-antiAnti && sudo bash deploy.sh`
+  （问域名 → 问数据库 DSN → 端口 28906 被占自动顺延 → 自动定位 nginx server 块注入 location，
+  注入前备份、nginx -t 失败自动还原；未检测到 nginx 自动取消）
+- 预编译二进制：https://github.com/freedom-winds/newapi-antiAnti/releases
 
-# 配置
-mkdir -p /root/moderation-console && cp s6-moderation-console /root/moderation-console/
-cat > /root/moderation-console/.env <<EOF
-MOD_PG_DSN=postgresql://用户:密码@数据库地址:5432/库名?sslmode=disable
-MOD_ADMIN_USER=admin
-MOD_ADMIN_PASS=改成你自己的密码
-MOD_LISTEN=127.0.0.1:8295
-EOF
-
-# systemd（单元文件在 moderation-console/s6-moderation-console.service）
-cp s6-moderation-console.service /etc/systemd/system/
-systemctl daemon-reload && systemctl enable --now s6-moderation-console
-```
-
-nginx 挂到你的域名下（加到 new-api 的 server 块里）：
-
-```nginx
-location = /moderation-admin { return 301 /moderation-admin/; }
-location /moderation-admin/ {
-    proxy_pass http://127.0.0.1:8295/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    add_header Cache-Control "no-cache";
-}
-```
-
-浏览器打开 `https://你的域名/moderation-admin/`：概览（今日总请求/抽检数/成功率/违规数）、
-分组设置（分组自动同步，卡片式配置）、抽检记录（点行看完整内容、标误报/确认）、
-对话标记（一键解除）、高级设置（检测通道在线测试）。
-
-- 数据库不是 PostgreSQL？面板目前只支持 PG 直连，MySQL/SQLite 需要加驱动（小改动），或者先用 SQL 手工管理配置。
-- 面板登录只认 `.env` 里的账密，务必改掉默认密码；面板只监听 127.0.0.1，公网入口走 nginx。
+面板是独立服务，不碰 new-api 代码，直连 new-api 的 PostgreSQL 读写三张审核表。
+数据库不是 PG 的站点：先用 SQL 手工管理 `moderation_settings`，或提 issue 催加驱动。
 
 ## 四、行为速览
 
