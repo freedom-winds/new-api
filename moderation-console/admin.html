@@ -86,6 +86,7 @@
     <button data-tab="ht" onclick="tab('ht')">抽检记录</button>
     <button data-tab="mk" onclick="tab('mk')">对话标记</button>
     <button data-tab="ad" onclick="tab('ad')">高级设置</button>
+    <button data-tab="memo" onclick="tab('memo')">备忘录</button>
   </div>
 
   <!-- 概览 -->
@@ -181,6 +182,16 @@
     </div>
     <div class="savebar"><button class="act green" onclick="saveConfig(true)">保存高级设置</button></div>
   </div>
+
+  <!-- 备忘录 -->
+  <div id="tab-memo" class="hide">
+    <div class="card">
+      <div class="hint">存在站点数据库里的私人便签（只有管理台登录可见），手机随时能看。适合记待办、要转发的话等。</div>
+      <textarea id="memo_text" rows="14" placeholder="随手记点什么…"></textarea>
+      <div style="margin-top:10px;text-align:right"><span class="muted" id="memo_saved"></span>
+        <button class="act green" onclick="saveMemo()">保存备忘录</button></div>
+    </div>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -216,9 +227,10 @@ async function doLogin(){
 
 function tab(name){
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===name));
-  ['ov','pl','ht','mk','ad'].forEach(t=>$('tab-'+t).classList.toggle('hide', t!==name));
+  ['ov','pl','ht','mk','ad','memo'].forEach(t=>$('tab-'+t).classList.toggle('hide', t!==name));
   if(name==='ov') loadOverview(); if(name==='pl') loadPolicy();
   if(name==='ht') loadHits(); if(name==='mk') loadMarks(); if(name==='ad') loadPolicy();
+  if(name==='memo') loadMemo();
 }
 
 async function init(){
@@ -444,6 +456,18 @@ async function delMark(id){
   if(!confirm('解除该标记？解除后该对话恢复正常，30 秒内生效。')) return;
   const j = await api('api/marks/delete',{method:'POST',body:JSON.stringify({id})});
   if(j.ok){ toast('已解除'); loadMarks(); } else toast(j.error);
+}
+
+async function loadMemo(){
+  const j = await api('api/memo');
+  if(!j.ok) return;
+  $('memo_text').value = j.data.content || '';
+  $('memo_saved').textContent = '';
+}
+async function saveMemo(){
+  const j = await api('api/memo',{method:'POST',body:JSON.stringify({content:$('memo_text').value})});
+  if(j.ok){ $('memo_saved').textContent = '已保存 '+new Date().toLocaleTimeString('zh-CN',{hour12:false}); toast('备忘录已保存'); }
+  else toast(j.error||'保存失败');
 }
 
 if (TOKEN) {

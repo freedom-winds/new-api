@@ -98,6 +98,7 @@ func main() {
 	mux.HandleFunc("/api/hits/review", auth(handleReview))
 	mux.HandleFunc("/api/marks", auth(handleMarks))
 	mux.HandleFunc("/api/marks/delete", auth(handleMarkDelete))
+	mux.HandleFunc("/api/memo", auth(handleMemo))
 	mux.HandleFunc("/api/test", auth(handleTest))
 
 	log.Printf("[moderation-console] listening on %s", listenAddr)
@@ -142,6 +143,8 @@ func ensureSchema() {
 			model_name varchar(128) DEFAULT '', category varchar(32) DEFAULT '',
 			confidence double precision DEFAULT 0, reason text, excerpt text,
 			action varchar(16) DEFAULT '', reviewed int DEFAULT 0, note text, latency_ms int DEFAULT 0)`,
+		`CREATE TABLE IF NOT EXISTS moderation_memo(
+			id int PRIMARY KEY, content text NOT NULL DEFAULT '', updated_at bigint DEFAULT 0)`,
 		`CREATE INDEX IF NOT EXISTS idx_mod_hits_created ON moderation_hits(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_mod_hits_group ON moderation_hits(group_name)`,
 	}
@@ -654,4 +657,34 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ==================== 备忘录 ====================
+
+func handleMemo(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		var content string
+		db.QueryRow(`SELECT content FROM moderation_memo WHERE id=1`).Scan(&content)
+		writeJSON(w, apiResp{OK: true, Data: map[string]any{"content": content}})
+	case http.MethodPost:
+		var b struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 256<<10)).Decode(&b); err != nil {
+			fail(w, 400, "invalid json")
+			return
+		}
+		_, err := db.Exec(`
+			INSERT INTO moderation_memo(id, content, updated_at) VALUES(1, $1, $2)
+			ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, updated_at = EXCLUDED.updated_at`,
+			b.Content, time.Now().Unix())
+		if err != nil {
+			fail(w, 500, err.Error())
+			return
+		}
+		writeJSON(w, apiResp{OK: true})
+	default:
+		fail(w, 405, "method not allowed")
+	}
 }
